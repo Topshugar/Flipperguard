@@ -52,6 +52,12 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 .footer{color:#525252;font-size:12px;margin-top:20px;line-height:1.6}
 .help ol{margin-left:18px;color:#a3a3a3;line-height:1.7;font-size:14px}
 .trust-btn{margin-top:8px;padding:8px 12px;border-radius:8px;border:0;background:#fff;font-weight:700;cursor:pointer}
+.cta{border:2px solid #22c55e;text-align:center}
+.cta a{display:block;text-decoration:none;font-weight:800;padding:16px;border-radius:12px;margin-top:12px}
+.cta-wa{background:#22c55e;color:#000}
+.cta-mail{background:#262626;color:#fff;padding:12px !important}
+.tools-card{border:1px solid #3b82f6;text-align:center;background:#0f172a}
+.tools-card a{display:block;background:#3b82f6;color:#fff;font-weight:800;padding:16px;border-radius:12px;text-decoration:none;margin-top:12px}
 </style>
 </head>
 <body>
@@ -59,6 +65,14 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 <div class="badge">● LISTEN-ONLY • YOUR PERMISSION ONLY</div>
 <h1>Flipper<span>guard</span></h1>
 <p class="sub">Passive BLE monitor. This page only listens with your permission. It never transmits.<br>Works on Chrome on Android. Requires HTTPS (GitHub Pages is OK).</p>
+<p style="margin-top:8px;font-size:13px;color:#a3a3a3">Check out more tools → <a href="https://clearcodesystem.onrender.com" target="_blank" style="color:#60a5fa;font-weight:700">clearcodesystem.onrender.com</a></p>
+
+<!-- DASHBOARD EDITION - TOP -->
+<div class="card cta">
+<h3 style="font-size:20px">🚗 Flipperguard Dashboard Edition</h3>
+<p style="margin-top:10px">This web page is only a demo.<br>The full version installs <b style="color:#fff">inside your car screen</b>, starts automatically with ignition, and protects 24/7.</p>
+<a class="cta-wa" href="https://wa.me/2348165043865?text=Hi%20Flipperguard%2C%20I%20want%20the%20Dashboard%20Edition%20for%20my%20car">📲 CONTACT US TO INSTALL</a>
+</div>
 
 <div id="browserHelp" class="card help" style="display:none">
 <h3>⚠️ This browser can't scan BLE</h3>
@@ -79,6 +93,15 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 <div id="alertBox" class="alert">🚨 Unknown device detected repeatedly near you. Check surroundings.</div>
 <div id="list"></div>
 <div id="log" class="log"></div>
+</div>
+
+<!-- MORE TOOLS - SEPARATE SITE, JUST ADVERT -->
+<div class="card tools-card">
+<h3 style="font-size:20px">🛠️ Looking For More Tools?</h3>
+<p style="margin-top:10px;color:#cbd5e1">Check out our other site for more tools.</p>
+<p style="margin-top:8px;color:#94a3b8;font-size:13px">Not related to Flipperguard — just more useful tools.</p>
+<a href="https://clearcodesystem.onrender.com" target="_blank">🌐 VISIT MORE TOOLS →</a>
+<p style="margin-top:10px;font-size:12px;color:#64748b">clearcodesystem.onrender.com</p>
 </div>
 
 <div class="card">
@@ -105,7 +128,17 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 <p><b style="color:#fff">Not available in browser.</b><br>This needs RTL-SDR hardware + a native app. This static web version monitors BLE only. For fob protection, use a Faraday pouch.</p>
 </div>
 
-<p class="footer">© 2026 Flipperguard • Passive • Legal<br>Author: Topshugar • BLE only on web. No data leaves your phone.</p>
+<!-- DASHBOARD EDITION - BOTTOM / SALES -->
+<div class="card cta">
+<h3 style="font-size:22px">🚗 Want Flipperguard INSIDE Your Car?</h3>
+<p style="margin-top:10px">This web page is only a demo.<br>The full <b style="color:#fff">Dashboard Edition</b> installs on your car screen, starts automatically with ignition, and monitors BLE + Key Fob.</p>
+<p style="margin-top:10px"><b style="color:#fff">For Car Owners • Fleets • Dealers</b></p>
+<a class="cta-wa" href="https://wa.me/2348165043865?text=Hi%20Flipperguard%2C%20I%20want%20the%20Dashboard%20Edition%20for%20my%20car">📲 CONTACT US ON WHATSAPP</a>
+<a class="cta-mail" href="mailto:peopleschoicesupply01ne@gmail.com?subject=Flipperguard%20Dashboard%20Edition%20-%20I%20Want%20Installation">✉️ peopleschoicesupply01ne@gmail.com</a>
+<p style="margin-top:10px;font-size:12px">No app to download. We install it for you.<br>WhatsApp: +234 816 504 3865</p>
+</div>
+
+<p class="footer">© 2026 Flipperguard • Passive • Legal<br>Author: Topshugar • BLE only on web. No data leaves your phone.<br>More Tools: <a href="https://clearcodesystem.onrender.com" style="color:#60a5fa">clearcodesystem.onrender.com</a><br>Contact: +234 816 504 3865 • peopleschoicesupply01ne@gmail.com</p>
 </div>
 
 <script>
@@ -245,6 +278,29 @@ function stopScan(){
   document.getElementById('stopBtn').disabled = true;
   log('Scan stopped by user');
 }
+
+// Automatic mode - as automatic as Chrome allows: tap anywhere = start
+let autoTried = false;
+function tryAutoStart() {
+  if (autoTried) return;
+  autoTried = true;
+  document.getElementById('browserHelp').style.display = 'none';
+  startScan();
+}
+document.addEventListener('pointerdown', tryAutoStart, { once: true });
+const startBtnEl = document.getElementById('startBtn');
+if (startBtnEl) {
+  startBtnEl.textContent = '▶ TAP ANYWHERE TO START PROTECTING';
+  startBtnEl.style.animation = 'pulse 1.2s infinite';
+  const st = document.createElement('style');
+  st.textContent = '@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.04)}100%{transform:scale(1)}}';
+  document.head.appendChild(st);
+}
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && !isScanning && autoTried) {
+    setStatus('Tap anywhere to resume scanning');
+  }
+});
 
 // Show friendly help instead of scary alert if browser cannot scan
 if (!supportsBLE()) {
