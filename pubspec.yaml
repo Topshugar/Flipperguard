@@ -1,0 +1,17 @@
+name: flipperguard
+description: Passive BLE monitor to protect against Flipper BLE spam
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_blue_plus: ^1.35.0
+  permission_handler: ^11.3.0
+  crypto: ^3.0.3
+
+flutter:
+  uses-material-design: true
