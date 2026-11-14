@@ -1,126 +1,172 @@
-# ═══════════════════════════════════════
-#  THE FLIPPERGUARD GAZETTE
-#  Passive Protection • No Transmission
-# ═══════════════════════════════════════
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flipperguard - Passive BLE Monitor</title>
+<!--
+  Flipperguard v1.0 - Passive BLE Monitor
+  Author: Topshugar
+  License: Free for personal, defensive use.
 
-# FLIPPERGUARD GOES LIVE:
-# A Listen-Only Guard For Your Car
+  DESIGN PHILOSOPHY:
+  Flipperguard is intentionally listen-only. It does not transmit, jam,
+  pair, connect, clone, or replay any signal. It observes Bluetooth Low
+  Energy advertisements that devices already broadcast publicly, with
+  explicit user permission, and flags anomalies for the owner.
 
-**By Topshugar | Abuja, Nigeria | November 2026 | Special Report**
+  SCOPE OF THIS STATIC BUILD:
+  This is a static GitHub Pages build. It therefore implements only what
+  the Web Bluetooth API can do safely in a browser:
+    - Passive BLE advertisement listening
+    - Local-only device memory (localStorage)
+    - Heuristic anomaly detection (unknown + repeated + strong signal)
 
-**Live Edition:** https://topshugar.github.io/Flipperguard/  
-**Source Archive:** https://github.com/topshugar/Flipperguard
+  It does NOT implement 315/433 MHz monitoring. That requires RTL-SDR
+  hardware and a native application. That limitation is stated honestly
+  in the UI to avoid misleading users.
 
-> **EDITOR'S NOTE:** This is a working prototype, not a finished product. What follows is what has actually been built, tested, and deployed — nothing more.
+  PRIVACY:
+  No data leaves the device. No analytics. No server upload.
+  Known devices are stored only in the user's browser.
+-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui,sans-serif}
+body{background:#0a0a0a;color:#fff;padding:20px}
+.wrap{max-width:560px;margin:0 auto;text-align:center}
+.badge{background:#22c55e;color:#000;padding:6px 14px;border-radius:20px;font-weight:700;font-size:13px;display:inline-block}
+h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
+.sub{color:#a3a3a3;line-height:1.6;font-size:15px}
+.card{background:#171717;border:1px solid #262626;border-radius:16px;padding:18px;margin:16px 0;text-align:left}
+.card p{color:#a3a3a3;line-height:1.6;font-size:14px}
+.card li{color:#a3a3a3;line-height:1.7;font-size:14px;margin-left:18px}
+.btn{background:#22c55e;color:#000;font-weight:800;padding:16px;border-radius:12px;border:0;width:100%;font-size:16px;cursor:pointer}
+.btn2{background:#262626;color:#fff;padding:12px;border-radius:10px;border:0;width:100%;margin-top:10px;cursor:pointer}
+.device{background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;padding:12px;margin-top:10px;text-align:left}
+.device b{font-size:15px} .device span{font-size:13px;color:#a3a3a3}
+.unknown{border-color:#ef4444} .known{border-color:#22c55e}
+.alert{background:#3f1a1a;border:1px solid #ef4444;padding:12px;border-radius:12px;margin-top:12px;font-size:14px;display:none}
+.log{font-size:12px;color:#888;text-align:left;margin-top:10px;white-space:pre-wrap}
+.footer{color:#525252;font-size:12px;margin-top:20px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="badge">● LISTEN-ONLY • YOUR PERMISSION ONLY</div>
+<h1>Flipper<span>guard</span></h1>
+<p class="sub">Passive BLE monitor. This page only listens with your permission. It never transmits.<br>Works on Chrome on Android. Requires HTTPS (GitHub Pages is OK).</p>
 
----
+<div class="card">
+<h3>📡 Status: <span id="status">Idle</span></h3>
+<p>Tap Start. Allow Bluetooth when Chrome asks. Walk near your car. Flipperguard will list BLE devices it hears.</p>
+<button class="btn" onclick="startScan()">▶ START PASSIVE SCAN</button>
+<button class="btn2" onclick="stopScan()">⏹ Stop</button>
+<div id="alertBox" class="alert">🚨 Unknown device detected repeatedly near you. Check surroundings.</div>
+<div id="list"></div>
+<div id="log" class="log"></div>
+</div>
 
-## HEADLINE STORY: It Watches. It Never Transmits.
+<div class="card">
+<h3>🧪 How to Test Near Your Car - Accurately</h3>
+<p>This is a defensive test. Do it only with your own car, in your own space.</p>
+<ul style="margin-top:10px">
+<li><b style="color:#fff">1. Baseline:</b> Park, lock car, stand 2m away. Tap Start. Wait 60 seconds. Mark your phone, watch, earbuds as Trusted.</li>
+<li><b style="color:#fff">2. Normal:</b> You should see only your known devices. No alert.</li>
+<li><b style="color:#fff">3. Anomaly test:</b> Turn on a second phone's Bluetooth / a BLE beacon and leave it near the car for 2 minutes. Flipperguard should list it as Unknown.</li>
+<li><b style="color:#fff">4. Alert test:</b> If that unknown device stays close (RSSI stronger than -60 dBm) and is seen 3+ times, the alert appears. That is the intended behaviour.</li>
+<li><b style="color:#fff">5. Stop:</b> Always tap Stop when done. Do not leave scanning on unnecessarily.</li>
+</ul>
+<p style="margin-top:10px">Note: RSSI varies with distance, body, and obstacles. This tool is an early warning aid, not a forensic instrument. Pair with a Faraday pouch for key-fob protection.</p>
+</div>
 
-Flipperguard is a free, defensive prototype that passively monitors Bluetooth Low Energy (BLE) advertisements near your vehicle and alerts you to anomalies.
+<div class="card">
+<h3>🔑 Known Devices</h3>
+<p>Your trusted devices are saved only on this phone. Unknown devices are flagged.</p>
+<button class="btn2" onclick="clearKnown()">Clear Known Devices</button>
+</div>
 
-It was built on a single principle:
+<div class="card">
+<h3>📻 315 / 433 MHz Key Fob</h3>
+<p><b style="color:#fff">Not available in browser.</b><br>This needs RTL-SDR hardware + a native app. This static web version monitors BLE only. For fob protection, use a Faraday pouch.</p>
+</div>
 
-> **Passive monitoring with user permission is the right design.**
+<p class="footer">© 2026 Flipperguard • Passive • Legal<br>Author: Topshugar • BLE only on web. No data leaves your phone.</p>
+</div>
 
-The tool listens only after you tap Start and allow Bluetooth in Chrome. It never pairs. It never connects. It never jams. It never transmits.
+<script>
+/*
+  * Flipperguard - Core Logic
+  * Author: Topshugar
+ *
+  * Why Web Bluetooth requestLEScan?
+  * requestLEScan() is the only browser API that allows passive observation
+  * of BLE advertisements without pairing or connecting. We deliberately
+  * avoid requestDevice() + gatt.connect() because connection is not
+  * needed for monitoring and would expand the attack surface.
+ *
+  * Detection heuristic - why these thresholds?
+  * - Unknown: Device ID not in local known list
+  * - Repeated: Seen >= 3 times, to filter out brief passers-by
+  * - Strong: RSSI > -60 dBm, suggesting proximity to the vehicle
+  * A single weak advertisement is not an alert. The combination is.
+  * This reduces false positives while remaining useful as an early warning.
+ *
+  * Limitations acknowledged:
+  * - RSSI is noisy and device-dependent. It indicates proximity, not proof.
+  * - BLE MACs may rotate. A known device may reappear as unknown.
+  * - Browser support is limited to Chromium-based browsers on Android.
+  * - No 315/433 MHz support in this build by design.
+ */
 
----
+// In-memory observation store: deviceId -> {id, name, rssi, count}
+// Kept in memory for the session. Only trusted IDs persist to localStorage.
+let seen = {};
+let known = JSON.parse(localStorage.getItem('fg_known')||'[]');
+let scanObj = null;
 
-## WHAT OUR REPORTER VERIFIED ON THE GROUND
+function log(t){ document.getElementById('log').textContent = new Date().toLocaleTimeString() + ' - ' + t + '\n' + document.getElementById('log').textContent; }
+function saveKnown(){ localStorage.setItem('fg_known', JSON.stringify(known)); }
 
-**CONFIRMED — Now In The Deployed Build:**
+function render(){
+  const list = document.getElementById('list');
+  list.innerHTML = '';
+  Object.values(seen).forEach(d=>{
+    const isKnown = known.includes(d.id);
+    const div = document.createElement('div');
+    div.className = 'device ' + (isKnown ? 'known' : 'unknown');
+    div.innerHTML = `<b>${d.name||'Unknown Device'}</b><br><span>ID: ${d.id.slice(0,12)}... • RSSI: ${d.rssi} dBm • Seen: ${d.count}x • ${isKnown?'✅ Known':'⚠️ Unknown'}</span><br><button style="margin-top:8px;padding:8px 12px;border-radius:8px;border:0;background:#fff;font-weight:700" onclick="trust('${d.id}')">Mark as Trusted</button>`;
+    list.appendChild(div);
+  });
+}
+function trust(id){ if(!known.includes(id)) known.push(id); saveKnown(); render(); log('Trusted device saved locally'); }
+function clearKnown(){ known=[]; saveKnown(); render(); log('Known list cleared'); }
 
-- Passive BLE advertisement listening using `navigator.bluetooth.requestLEScan()`
-- On-screen list of nearby BLE devices — name, ID prefix, RSSI, seen count
-- Local trusted-device list stored in `localStorage` only, on your phone
-- Anomaly warning: Unknown + Seen 3+ times + RSSI stronger than -60 dBm = Alert
-
-**NOT IN THIS EDITION — And We Will Not Pretend Otherwise:**
-
-- No 315 / 433 MHz monitoring in this web build
-- No RTL-SDR / nRF integration yet
-- No background monitoring
-- No server, database, or account system
-- No pairing, connecting, jamming, or transmitting
-
-If you read any other claim elsewhere, it did not come from this version.
-
----
-
-## HOW TO TEST IT YOURSELF — THE CITIZEN'S GUIDE
-
-**Do not take our word for it. Test it.**
-
-**You Will Need:**
-- Chrome on Android — Web Bluetooth is not supported on iOS Safari
-- Bluetooth switched on
-- The Live Edition link above, opened over HTTPS
-
-**The Test, Step By Step:**
-
-1. **Open** https://topshugar.github.io/Flipperguard/
-2. **Tap** `START PASSIVE SCAN` and allow Bluetooth when Chrome asks.
-3. **Wait** 60 seconds. You should see your own nearby BLE devices.
-4. **Mark** your phone, watch, and earbuds as Trusted.
-5. **Introduce** a second Bluetooth device near the phone for 2 minutes. It should appear as Unknown.
-6. **Watch** — if it stays close and is seen 3+ times with strong signal, the alert appears. That is the intended behaviour.
-7. **Tap** `Stop` to end the scan.
-
-**A Note On Accuracy:** RSSI varies with distance, body, and obstacles. This is an early-warning aid, not a forensic instrument.
-
----
-
-## THE 315 / 433 MHZ QUESTION — ANSWERED HONESTLY
-
-Readers have asked: Does this stop key-fob theft on 315 / 433 MHz?
-
-**Answer: Not in this web edition.**
-
-That band requires RTL-SDR hardware and a native app. A browser cannot do it.
-
-For fob protection today, the practical advice stands:
-- Use Flipperguard for BLE awareness
-- Keep your fob in a Faraday pouch
-
----
-
-## FROM THE ARCHIVE — FILE STRUCTURE
-
-No build step. No dependencies. No framework. This keeps the static deployment auditable by anyone.
-
----
-
-## PRIVACY CHARTER
-
-- No analytics
-- No tracking
-- No server upload
-- No account required
-
-Your trusted device list never leaves your browser.
-
----
-
-## LEGAL NOTICE
-
-Flipperguard is strictly receive-only and passive.
-
-Use it only to monitor your own property, with consent, and in compliance with local laws. Do not use it to monitor others without consent or to interfere with any device or signal.
-
----
-
-## COMING EDITIONS — PLANNED, NOT YET PRINTED
-
-- [x] **v0.1 — Passive BLE Monitor (Static Web) — DEPLOYED**
-- [ ] **v0.2 — Alert history + export log** — Planned, not built
-- [ ] **v1.0 — Native companion app with RTL-SDR support** — Planned, not built
-- [ ] **v1.1 — Optional software lockdown** — Planned, not built
-
-Items marked as planned are NOT done yet.
-
----
-
-**© 2026 Flipperguard — Prototype by Topshugar. All Rights Reserved.**  
-**Passive protection. No transmission. No false claims.**  
-**— END OF EDITION —**
+async function startScan(){
+  if(!navigator.bluetooth){ alert('Web Bluetooth not supported on this browser. Use Chrome on Android.'); return; }
+  try{
+    document.getElementById('status').textContent = 'Scanning...';
+    log('Requesting Bluetooth permission...');
+    // Passive listening only. No pairing. No connection. No transmission.
+    scanObj = await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true });
+    log('Passive scan started. Listening only.');
+    navigator.bluetooth.addEventListener('advertisementreceived', e=>{
+      const id = e.device.id;
+      const rssi = e.rssi;
+      if(!seen[id]) seen[id] = {id, name: e.device.name||'Unknown', rssi, count:0};
+      seen[id].rssi = rssi;
+      seen[id].count++;
+      seen[id].name = e.device.name || seen[id].name;
+      // Anomaly: unknown + strong + repeated = alert
+      if(!known.includes(id) && seen[id].count >= 3 && rssi > -60){
+        document.getElementById('alertBox').style.display='block';
+        log('ALERT: Unknown strong device repeated - ' + (e.device.name||'Unknown'));
+      }
+      render();
+    });
+  }catch(err){ document.getElementById('status').textContent='Idle'; log('Scan stopped / denied: '+err.message); }
+}
+function stopScan(){ if(scanObj) scanObj.stop(); document.getElementById('status').textContent='Stopped'; log('Scan stopped by user'); }
+render();
+</script>
+</body>
+</html>
