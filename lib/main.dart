@@ -23,7 +23,6 @@ class FlipperGuardApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0F1A),
         primaryColor: const Color(0xFF00FF88),
-        useMaterial3: true,
       ),
       home: const RootScreen(),
       debugShowCheckedModeBanner: false,
@@ -85,7 +84,6 @@ class _RootScreenState extends State<RootScreen> {
       _trustedHashes = (prefs.getStringList('trusted') ?? []).toSet();
       final firstRun = prefs.getInt('firstRun') ?? DateTime.now().millisecondsSinceEpoch;
       if (!prefs.containsKey('firstRun')) prefs.setInt('firstRun', firstRun);
-      // Learning mode = first 3 days
       _isLearning = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(firstRun)).inDays < 3;
     });
   }
@@ -212,6 +210,7 @@ class _RootScreenState extends State<RootScreen> {
   }
 
   Future<void> _doLockdown({bool auto = false}) async {
+    // ignore: deprecated_member_use
     try { await FlutterBluePlus.turnOff(); } catch (_) {}
     _addLog("LOCKDOWN", auto ? "Auto-lockdown: Bluetooth OFF for 30s" : "Manual lockdown: Bluetooth OFF", ThreatLevel.alert);
     if (!mounted) return;
@@ -244,12 +243,6 @@ class _RootScreenState extends State<RootScreen> {
     final file = File('${dir.path}/flipperguard_log.csv');
     await file.writeAsString(csv);
     await Share.shareXFiles([XFile(file.path)], text: 'FlipperGuard Export');
-  }
-
-  void _markTrusted(String hash) {
-    setState(() { _trustedHashes.add(hash); });
-    _savePrefs();
-    _addLog("Trusted Device", "User marked device as theirs — will be ignored", ThreatLevel.safe);
   }
 
   @override
