@@ -18,9 +18,9 @@
   SCOPE OF THIS STATIC BUILD:
   This is a static GitHub Pages build. It therefore implements only what
   the Web Bluetooth API can do safely in a browser:
-    - Passive BLE advertisement listening
-    - Local-only device memory (localStorage)
-    - Heuristic anomaly detection (unknown + repeated + strong signal)
+        - Passive BLE advertisement listening
+        - Local-only device memory (localStorage)
+        - Heuristic anomaly detection (unknown + repeated + strong signal)
 
   It does NOT implement 315/433 MHz monitoring. That requires RTL-SDR
   hardware and a native application. That limitation is stated honestly
@@ -41,13 +41,17 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 .card p{color:#a3a3a3;line-height:1.6;font-size:14px}
 .card li{color:#a3a3a3;line-height:1.7;font-size:14px;margin-left:18px}
 .btn{background:#22c55e;color:#000;font-weight:800;padding:16px;border-radius:12px;border:0;width:100%;font-size:16px;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .btn2{background:#262626;color:#fff;padding:12px;border-radius:10px;border:0;width:100%;margin-top:10px;cursor:pointer}
+.btn2:disabled{opacity:.5;cursor:not-allowed}
 .device{background:#0f0f0f;border:1px solid #2a2a2a;border-radius:12px;padding:12px;margin-top:10px;text-align:left}
 .device b{font-size:15px} .device span{font-size:13px;color:#a3a3a3}
 .unknown{border-color:#ef4444} .known{border-color:#22c55e}
 .alert{background:#3f1a1a;border:1px solid #ef4444;padding:12px;border-radius:12px;margin-top:12px;font-size:14px;display:none}
-.log{font-size:12px;color:#888;text-align:left;margin-top:10px;white-space:pre-wrap}
+.log{font-size:12px;color:#888;text-align:left;margin-top:10px;white-space:pre-wrap;word-break:break-word}
 .footer{color:#525252;font-size:12px;margin-top:20px;line-height:1.6}
+.help ol{margin-left:18px;color:#a3a3a3;line-height:1.7;font-size:14px}
+.trust-btn{margin-top:8px;padding:8px 12px;border-radius:8px;border:0;background:#fff;font-weight:700;cursor:pointer}
 </style>
 </head>
 <body>
@@ -56,11 +60,22 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 <h1>Flipper<span>guard</span></h1>
 <p class="sub">Passive BLE monitor. This page only listens with your permission. It never transmits.<br>Works on Chrome on Android. Requires HTTPS (GitHub Pages is OK).</p>
 
+<div id="browserHelp" class="card help" style="display:none">
+<h3>⚠️ This browser can't scan BLE</h3>
+<p style="margin-top:8px">Don't worry. Follow these 3 steps:</p>
+<ol style="margin-top:8px">
+<li>Close this app. Open <b style="color:#fff">Chrome</b> — not WhatsApp, not Samsung Internet.</li>
+<li>In Chrome, type <b style="color:#fff">chrome://flags</b> → search <b style="color:#fff">Experimental Web Platform features</b> → Enable → Relaunch</li>
+<li>Then open: <b style="color:#fff">topshugar.github.io/Flipperguard</b></li>
+</ol>
+<button class="btn" style="margin-top:12px" onclick="window.location.href='intent://topshugar.github.io/Flipperguard/#Intent;scheme=https;package=com.android.chrome;end'">OPEN IN CHROME →</button>
+</div>
+
 <div class="card">
 <h3>📡 Status: <span id="status">Idle</span></h3>
 <p>Tap Start. Allow Bluetooth when Chrome asks. Walk near your car. Flipperguard will list BLE devices it hears.</p>
-<button class="btn" onclick="startScan()">▶ START PASSIVE SCAN</button>
-<button class="btn2" onclick="stopScan()">⏹ Stop</button>
+<button id="startBtn" class="btn" onclick="startScan()">▶ START PASSIVE SCAN</button>
+<button id="stopBtn" class="btn2" onclick="stopScan()" disabled>⏹ Stop</button>
 <div id="alertBox" class="alert">🚨 Unknown device detected repeatedly near you. Check surroundings.</div>
 <div id="list"></div>
 <div id="log" class="log"></div>
@@ -95,37 +110,46 @@ h1{font-size:42px;margin:14px 0 6px} h1 span{color:#22c55e}
 
 <script>
 /*
-  * Flipperguard - Core Logic
-  * Author: Topshugar
+    * Flipperguard - Core Logic
+    * Author: Topshugar
  *
-  * Why Web Bluetooth requestLEScan?
-  * requestLEScan() is the only browser API that allows passive observation
-  * of BLE advertisements without pairing or connecting. We deliberately
-  * avoid requestDevice() + gatt.connect() because connection is not
-  * needed for monitoring and would expand the attack surface.
+    * Why Web Bluetooth requestLEScan?
+    * requestLEScan() is the only browser API that allows passive observation
+    * of BLE advertisements without pairing or connecting. We deliberately
+    * avoid requestDevice() + gatt.connect() because connection is not
+    * needed for monitoring and would expand the attack surface.
  *
-  * Detection heuristic - why these thresholds?
-  * - Unknown: Device ID not in local known list
-  * - Repeated: Seen >= 3 times, to filter out brief passers-by
-  * - Strong: RSSI > -60 dBm, suggesting proximity to the vehicle
-  * A single weak advertisement is not an alert. The combination is.
-  * This reduces false positives while remaining useful as an early warning.
+    * Detection heuristic - why these thresholds?
+    * - Unknown: Device ID not in local known list
+    * - Repeated: Seen >= 3 times, to filter out brief passers-by
+    * - Strong: RSSI > -60 dBm, suggesting proximity to the vehicle
+    * A single weak advertisement is not an alert. The combination is.
+    * This reduces false positives while remaining useful as an early warning.
  *
-  * Limitations acknowledged:
-  * - RSSI is noisy and device-dependent. It indicates proximity, not proof.
-  * - BLE MACs may rotate. A known device may reappear as unknown.
-  * - Browser support is limited to Chromium-based browsers on Android.
-  * - No 315/433 MHz support in this build by design.
+    * Limitations acknowledged:
+    * - RSSI is noisy and device-dependent. It indicates proximity, not proof.
+    * - BLE MACs may rotate. A known device may reappear as unknown.
+    * - Browser support is limited to Chromium-based browsers on Android.
+    * - No 315/433 MHz support in this build by design.
  */
 
 // In-memory observation store: deviceId -> {id, name, rssi, count}
 // Kept in memory for the session. Only trusted IDs persist to localStorage.
 let seen = {};
-let known = JSON.parse(localStorage.getItem('fg_known')||'[]');
+let known = [];
+try { known = JSON.parse(localStorage.getItem('fg_known') || '[]'); if (!Array.isArray(known)) known = []; } catch (e) { known = []; }
 let scanObj = null;
+let isScanning = false;
+let listenerAdded = false;
 
-function log(t){ document.getElementById('log').textContent = new Date().toLocaleTimeString() + ' - ' + t + '\n' + document.getElementById('log').textContent; }
-function saveKnown(){ localStorage.setItem('fg_known', JSON.stringify(known)); }
+function setStatus(t){ document.getElementById('status').textContent = t; }
+function log(t){
+  const el = document.getElementById('log');
+  const line = new Date().toLocaleTimeString() + ' - ' + t + '\n';
+  el.textContent = (line + el.textContent).slice(0, 2000);
+}
+function saveKnown(){ try { localStorage.setItem('fg_known', JSON.stringify(known)); } catch(e){} }
+function supportsBLE(){ return !!(navigator.bluetooth && typeof navigator.bluetooth.requestLEScan === 'function'); }
 
 function render(){
   const list = document.getElementById('list');
@@ -134,38 +158,99 @@ function render(){
     const isKnown = known.includes(d.id);
     const div = document.createElement('div');
     div.className = 'device ' + (isKnown ? 'known' : 'unknown');
-    div.innerHTML = `<b>${d.name||'Unknown Device'}</b><br><span>ID: ${d.id.slice(0,12)}... • RSSI: ${d.rssi} dBm • Seen: ${d.count}x • ${isKnown?'✅ Known':'⚠️ Unknown'}</span><br><button style="margin-top:8px;padding:8px 12px;border-radius:8px;border:0;background:#fff;font-weight:700" onclick="trust('${d.id}')">Mark as Trusted</button>`;
+    const title = document.createElement('b');
+    title.textContent = d.name || 'Unknown Device';
+    const meta = document.createElement('span');
+    meta.textContent = 'ID: ' + String(d.id).slice(0,12) + '... • RSSI: ' + d.rssi + ' dBm • Seen: ' + d.count + 'x • ' + (isKnown ? '✅ Known' : '⚠️ Unknown');
+    const btn = document.createElement('button');
+    btn.className = 'trust-btn';
+    btn.textContent = isKnown ? 'Untrust Device' : 'Mark as Trusted';
+    btn.onclick = function(){ toggleTrust(d.id); };
+    div.appendChild(title);
+    div.appendChild(document.createElement('br'));
+    div.appendChild(meta);
+    div.appendChild(document.createElement('br'));
+    div.appendChild(btn);
     list.appendChild(div);
   });
 }
-function trust(id){ if(!known.includes(id)) known.push(id); saveKnown(); render(); log('Trusted device saved locally'); }
+function toggleTrust(id){
+  if (known.includes(id)) known = known.filter(function(x){ return x !== id; });
+  else known.push(id);
+  saveKnown();
+  render();
+  log(known.includes(id) ? 'Trusted device saved locally' : 'Device removed from trusted list');
+}
 function clearKnown(){ known=[]; saveKnown(); render(); log('Known list cleared'); }
 
+function onAdvertisement(e){
+  if (!e || !e.device) return;
+  const id = String(e.device.id || 'unknown-' + Math.random().toString(36).slice(2));
+  const rssi = (typeof e.rssi === 'number') ? e.rssi : -100;
+  const name = e.device.name || '';
+  if(!seen[id]) seen[id] = {id: id, name: name || 'Unknown', rssi: rssi, count: 0};
+  seen[id].rssi = rssi;
+  seen[id].count++;
+  if (name) seen[id].name = name;
+  // Anomaly: unknown + strong + repeated = alert
+  if(!known.includes(id) && seen[id].count >= 3 && rssi > -60){
+    document.getElementById('alertBox').style.display='block';
+    log('ALERT: Unknown strong device repeated - ' + (name || 'Unknown'));
+  }
+  render();
+}
+
 async function startScan(){
-  if(!navigator.bluetooth){ alert('Web Bluetooth not supported on this browser. Use Chrome on Android.'); return; }
+  if (isScanning) return;
+  if(!supportsBLE()){
+    document.getElementById('browserHelp').style.display='block';
+    setStatus('Browser not supported');
+    log('Browser does not support requestLEScan. Open in Chrome on Android.');
+    return;
+  }
   try{
-    document.getElementById('status').textContent = 'Scanning...';
+    setStatus('Scanning...');
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
     log('Requesting Bluetooth permission...');
     // Passive listening only. No pairing. No connection. No transmission.
+    // Add listener only once, otherwise every Start adds a duplicate.
+    if (!listenerAdded) {
+      navigator.bluetooth.addEventListener('advertisementreceived', onAdvertisement);
+      listenerAdded = true;
+    }
     scanObj = await navigator.bluetooth.requestLEScan({ acceptAllAdvertisements: true });
+    isScanning = true;
     log('Passive scan started. Listening only.');
-    navigator.bluetooth.addEventListener('advertisementreceived', e=>{
-      const id = e.device.id;
-      const rssi = e.rssi;
-      if(!seen[id]) seen[id] = {id, name: e.device.name||'Unknown', rssi, count:0};
-      seen[id].rssi = rssi;
-      seen[id].count++;
-      seen[id].name = e.device.name || seen[id].name;
-      // Anomaly: unknown + strong + repeated = alert
-      if(!known.includes(id) && seen[id].count >= 3 && rssi > -60){
-        document.getElementById('alertBox').style.display='block';
-        log('ALERT: Unknown strong device repeated - ' + (e.device.name||'Unknown'));
-      }
-      render();
-    });
-  }catch(err){ document.getElementById('status').textContent='Idle'; log('Scan stopped / denied: '+err.message); }
+  }catch(err){
+    isScanning = false;
+    setStatus('Idle');
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    // NotFoundError = user pressed Cancel / Back. Don't scare novice users.
+    if (err && err.name === 'NotFoundError') {
+      log('Permission cancelled. Tap Start again and tap ALLOW.');
+    } else {
+      log('Scan stopped / denied: ' + (err && err.message ? err.message : err));
+    }
+  }
 }
-function stopScan(){ if(scanObj) scanObj.stop(); document.getElementById('status').textContent='Stopped'; log('Scan stopped by user'); }
+function stopScan(){
+  try { if (scanObj && typeof scanObj.stop === 'function') scanObj.stop(); } catch(e){}
+  scanObj = null;
+  isScanning = false;
+  setStatus('Stopped');
+  document.getElementById('alertBox').style.display='none';
+  document.getElementById('startBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = true;
+  log('Scan stopped by user');
+}
+
+// Show friendly help instead of scary alert if browser cannot scan
+if (!supportsBLE()) {
+  document.getElementById('browserHelp').style.display = 'block';
+  setStatus('Browser not supported');
+}
 render();
 </script>
 </body>
